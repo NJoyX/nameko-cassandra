@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function, division
 import inspect
 import os
 import weakref
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 from cassandra.cqlengine import management
 from cassandra.cqlengine import models as cassandra_models
@@ -173,15 +173,16 @@ class Cassandra(DependencyProvider):
 _fields = 'keyspace connection cluster session'.split()
 
 
-class CassandraHelper(namedtuple('CassandraHelper', _fields)):
+class CassandraHelper(namedtuple('CassandraHelper', _fields + ['models'])):
     _prepared_stmts = weakref.WeakValueDictionary()
-    _models = dict()
 
     @classmethod
     def setup(cls, provider):
-        helper_instance = cls(*map(lambda field: getattr(provider, field, None), _fields))
+        payload = dict(zip(_fields, map(lambda field: getattr(provider, field, None), _fields)))
+        payload['models'] = OrderedDict()
+        helper_instance = cls(**payload)
         for model in provider.models:
-            helper_instance._models[model.__name__] = model
+            helper_instance.models[model.__name__] = model
         return helper_instance
 
     def register_user_type(self, name, obj):
@@ -197,7 +198,7 @@ class CassandraHelper(namedtuple('CassandraHelper', _fields)):
 
     @cached_property
     def model(self):
-        return namedtuple('CassandraModels', self._models.keys())(*self._models.values())
+        return namedtuple('ProviderModels', self.models.keys())(*self.models.values())
 
     # @TODO
     # def bind_prepared_statement(self, name, value, consistency_level=ConsistencyLevel.ALL):
