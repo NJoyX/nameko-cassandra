@@ -157,7 +157,7 @@ class Cassandra(DependencyProvider):
             self.cluster.refresh_nodes()
         except Exception as e:
             pass
-        return CassandraHelper(self)
+        return CassandraHelper.setup(provider=self)
 
     def stop(self):
         try:
@@ -170,19 +170,19 @@ class Cassandra(DependencyProvider):
         self.stop()
 
 
-class CassandraHelper(namedtuple('CassandraHelper', 'keyspace connection cluster session')):
+_fields = 'keyspace connection cluster session'.split()
+
+
+class CassandraHelper(namedtuple('CassandraHelper', _fields)):
     _prepared_stmts = weakref.WeakValueDictionary()
     _models = dict()
 
-    def __init__(self, provider):
-        super(CassandraHelper, self).__init__(**dict(
-            keyspace=provider.keyspace,
-            connection=provider.connection,
-            cluster=provider.cluster,
-            session=provider.session
-        ))
+    @classmethod
+    def setup(cls, provider):
+        helper_instance = cls(*map(lambda field: getattr(provider, field, None), _fields))
         for model in provider.models:
-            self._models[model.__name__] = model
+            helper_instance._models[model.__name__] = model
+        return helper_instance
 
     def register_user_type(self, name, obj):
         return self.cluster.register_user_type(self.keyspace, name, obj)
