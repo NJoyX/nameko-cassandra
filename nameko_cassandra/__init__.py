@@ -56,40 +56,6 @@ CASSANDRA:
 """
 
 
-class CassandraHelper(namedtuple('CassandraHelper', 'keyspace connection cluster session')):
-    _prepared_stmts = weakref.WeakValueDictionary()
-    _models = dict()
-
-    def __init__(self, provider):
-        kwargs = dict(
-            keyspace=provider.keyspace,
-            connection=provider.connection,
-            cluster=provider.cluster,
-            session=provider.session
-        )
-        super(CassandraHelper, self).__init__(**kwargs)
-        for model in provider.models:
-            self._models[model.__name__] = model
-
-    def register_user_type(self, name, obj):
-        return self.cluster.register_user_type(self.keyspace, name, obj)
-
-    def prepared_statement(self, name, query, consistency_level=ConsistencyLevel.QUORUM, force=False):
-        if name in self._prepared_stmts and not force:
-            return self._prepared_stmts[name]
-        self._prepared_stmts[name] = self.session.prepare(query)
-        if consistency_level in ConsistencyLevel.value_to_name:
-            self._prepared_stmts[name].consistency_level = consistency_level
-        return self._prepared_stmts[name]
-
-    @cached_property
-    def model(self):
-        return namedtuple('CassandraModels', self._models.keys())(*self._models.values())
-
-    # @TODO
-    # def bind_prepared_statement(self, name, value, consistency_level=ConsistencyLevel.ALL):
-
-
 class Cassandra(DependencyProvider):
     connection = None
 
@@ -202,3 +168,36 @@ class Cassandra(DependencyProvider):
 
     def kill(self):
         self.stop()
+
+
+class CassandraHelper(namedtuple('CassandraHelper', 'keyspace connection cluster session')):
+    _prepared_stmts = weakref.WeakValueDictionary()
+    _models = dict()
+
+    def __init__(self, provider):
+        super(CassandraHelper, self).__init__(**dict(
+            keyspace=provider.keyspace,
+            connection=provider.connection,
+            cluster=provider.cluster,
+            session=provider.session
+        ))
+        for model in provider.models:
+            self._models[model.__name__] = model
+
+    def register_user_type(self, name, obj):
+        return self.cluster.register_user_type(self.keyspace, name, obj)
+
+    def prepared_statement(self, name, query, consistency_level=ConsistencyLevel.QUORUM, force=False):
+        if name in self._prepared_stmts and not force:
+            return self._prepared_stmts[name]
+        self._prepared_stmts[name] = self.session.prepare(query)
+        if consistency_level in ConsistencyLevel.value_to_name:
+            self._prepared_stmts[name].consistency_level = consistency_level
+        return self._prepared_stmts[name]
+
+    @cached_property
+    def model(self):
+        return namedtuple('CassandraModels', self._models.keys())(*self._models.values())
+
+    # @TODO
+    # def bind_prepared_statement(self, name, value, consistency_level=ConsistencyLevel.ALL):
